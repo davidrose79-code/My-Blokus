@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blokus</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Top bar with game title -->
+  <header id="header">
+    <h1>Blokus</h1>
+  </header>
+
+  <!-- Main area: board on the left, sidebar on the right -->
+  <main id="main">
+
+    <!-- The game board will be rendered here by app.js -->
+    <section id="board-area">
+      <div id="board"></div>
+    </section>
+
+    <!-- Sidebar: player info, piece palette, buttons -->
+    <aside id="sidebar">
+
+      <!-- Four player cards; JS highlights the active one -->
+      <div id="player-cards"></div>
+
+      <!-- Turn counter sits below the cards -->
+      <div id="turn-info">
+        Turn <span id="turn-number">1</span>
+      </div>
+
+      <div id="controls">
+        <button id="btn-pass">Pass</button>
+        <button id="btn-reset">Reset Board</button>
+      </div>
+
+      <label id="block-toggle-label">
+        <input type="checkbox" id="block-toggle">
+        Block opponents (AI rule)
+      </label>
+
+      <!-- JS renders piece cards into here -->
+      <div id="piece-palette"></div>
+
+      <!-- Always-visible reminder of what the keys do -->
+      <div id="key-hints">
+        <strong>Keyboard shortcuts</strong>
+        <ul>
+          <li><kbd>R</kbd> — rotate piece 90° clockwise</li>
+          <li><kbd>F</kbd> — flip piece left ↔ right</li>
+        </ul>
+        <p>Hover over the board to preview · click to place</p>
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- Status bar at the bottom: shows messages & coordinates -->
+  <footer id="status-bar">
+    <span id="status-text">Ready.</span>
+  </footer>
+
+  <!-- End-game overlay — hidden until endGame() shows it -->
+  <div id="end-screen" class="hidden">
+    <div id="end-card">
+      <h2>Game Over</h2>
+      <div id="scoreboard"></div>
+      <button id="btn-play-again">Play Again</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

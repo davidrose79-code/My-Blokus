@@ -1,0 +1,407 @@
+/* ── Reset & base ── */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: sans-serif;
+  background: #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* ── Header ── */
+#header {
+  background: #222;
+  color: #fff;
+  padding: 10px 20px;
+}
+
+#header h1 {
+  font-size: 1.4rem;
+  letter-spacing: 2px;
+}
+
+/* ── Main layout: board + sidebar side by side ── */
+#main {
+  display: flex;
+  flex: 1;          /* fills remaining height between header and footer */
+  overflow: hidden;
+  gap: 16px;
+  padding: 16px;
+}
+
+/* ── Board area ── */
+#board-area {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  flex: 0 0 auto;   /* don't stretch; size is set by the board itself */
+}
+
+#board {
+  /* Cells are added by JS; CSS Grid is set there too */
+  border: 2px solid #444;
+}
+
+/* ── Sidebar ── */
+#sidebar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+/* ── Player cards ── */
+#player-cards {
+  display: flex;
+  gap: 8px;
+}
+
+/* One card per player */
+.player-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background: #fff;
+  opacity: 0.45;           /* dimmed when not active */
+  transition: opacity 0.15s, border-color 0.15s;
+}
+
+/* The colored square swatch */
+.player-card .swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+}
+
+.player-card .player-name {
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+/* Stuck player: greyed out with a small "done" tag */
+.player-card.stuck {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.stuck-label {
+  font-size: 0.6rem;
+  color: #888;
+  font-style: italic;
+}
+
+/* Active player: full opacity + colored border ring */
+.player-card.active {
+  opacity: 1;
+  border-color: currentColor;  /* set via JS inline style */
+  box-shadow: 0 0 0 2px currentColor;
+}
+
+/* Turn counter */
+#turn-info {
+  font-size: 0.85rem;
+  color: #555;
+  padding: 2px 0;
+}
+
+#controls {
+  display: flex;
+  gap: 8px;
+}
+
+#controls button {
+  padding: 8px 14px;
+  cursor: pointer;
+  border: 1px solid #888;
+  border-radius: 4px;
+  background: #fff;
+  font-size: 0.9rem;
+}
+
+#controls button:hover {
+  background: #e8e8e8;
+}
+
+#piece-palette {
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 10px;
+  flex: 1;
+}
+
+/* ── Board cells ── */
+.cell {
+  width: 24px;
+  height: 24px;
+  border: 1px solid #ccc;
+  cursor: pointer;
+  background: #fff;
+}
+
+.cell:hover {
+  /* Subtle highlight so you can see where your cursor is */
+  filter: brightness(0.88);
+}
+
+/* Played pieces: greyed out and not clickable */
+.piece-preview.played {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* ── Piece palette ── */
+#piece-palette {
+  font-size: 0.8rem;
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+
+/* Wrapping grid of piece previews */
+.palette-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* One card per piece */
+.piece-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 4px;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #f5f5f5;
+}
+
+.piece-preview:hover {
+  background: #e8e8e8;
+}
+
+.piece-preview.selected {
+  border-color: #333;
+  background: #ddd;
+}
+
+/* The mini CSS-grid inside each preview card */
+.piece-mini-grid {
+  display: grid;
+  gap: 1px;
+}
+
+/* Each tiny cell in the preview */
+.preview-cell {
+  width: 10px;
+  height: 10px;
+  background: #ddd;   /* empty cell within bounding box */
+}
+
+/* Filled cells get their color from JS */
+.preview-cell.filled { }
+
+/* Small name label below the mini-grid */
+.piece-label {
+  font-size: 0.6rem;
+  color: #666;
+  font-weight: normal;
+}
+
+/* ── Ghost preview on the board ──
+   When a piece is selected and the cursor hovers over the board,
+   the would-be cells get this class applied directly in JS. */
+.cell-ghost {
+  opacity: 0.55;   /* semi-transparent so you can see it's not placed yet */
+}
+
+/* ── Keyboard hints box ── */
+#key-hints {
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-size: 0.8rem;
+  color: #444;
+  line-height: 1.6;
+}
+
+#key-hints strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.82rem;
+  color: #222;
+}
+
+#key-hints ul {
+  margin: 0 0 6px 16px;
+  padding: 0;
+}
+
+#key-hints kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  background: #eee;
+  border: 1px solid #bbb;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 0.8rem;
+}
+
+#key-hints p {
+  margin: 0;
+  color: #777;
+  font-style: italic;
+}
+
+/* ── End-screen overlay ── */
+.hidden { display: none !important; }
+
+#end-screen {
+  position: fixed;
+  inset: 0;                          /* covers the whole viewport */
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+#end-card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 28px 36px;
+  min-width: 320px;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.45);
+}
+
+#end-card h2 {
+  text-align: center;
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+  letter-spacing: 1px;
+}
+
+/* One row per player in the scoreboard */
+.score-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #eee;
+}
+.score-row:last-of-type { border-bottom: none; }
+
+.score-rank {
+  font-size: 1.1rem;
+  min-width: 28px;
+  text-align: center;
+}
+
+.score-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.score-info {
+  flex: 1;
+}
+
+.score-name {
+  font-weight: bold;
+  font-size: 0.95rem;
+}
+
+.score-detail {
+  font-size: 0.72rem;
+  color: #888;
+  margin-top: 2px;
+}
+
+.score-total {
+  font-size: 1.15rem;
+  font-weight: bold;
+  min-width: 52px;
+  text-align: right;
+}
+
+/* Gold / silver / bronze tints for top 3 */
+.score-row.rank-1 { background: #fffbe6; border-radius: 6px; }
+.score-row.rank-2 { background: #f6f6f6; border-radius: 6px; }
+.score-row.rank-3 { background: #fff4ec; border-radius: 6px; }
+
+#btn-play-again {
+  display: block;
+  width: 100%;
+  margin-top: 22px;
+  padding: 11px;
+  background: #4a90d9;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+}
+
+#btn-play-again:hover { background: #3a7bc8; }
+
+/* ── Human / AI toggle button on player cards ── */
+.mode-toggle {
+  font-size: 0.6rem;
+  padding: 2px 7px;
+  border: 1px solid #aaa;
+  border-radius: 3px;
+  background: #f0f0f0;
+  cursor: pointer;
+  margin-top: 3px;
+}
+
+.mode-toggle:hover { background: #e0e0e0; }
+
+/* Tinted blue when player is set to AI */
+.mode-toggle.ai {
+  background: #ddeeff;
+  border-color: #88aacc;
+  color: #225;
+  font-weight: bold;
+}
+
+/* ── Block-opponents checkbox label ── */
+#block-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #444;
+  cursor: pointer;
+  padding: 4px 0;
+  user-select: none;
+}
+
+/* ── Status bar ── */
+#status-bar {
+  background: #222;
+  color: #cfc;
+  padding: 6px 16px;
+  font-size: 0.85rem;
+  min-height: 28px;
+}

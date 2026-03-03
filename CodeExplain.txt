@@ -1,0 +1,393 @@
+APP.JS STRUCTURE — PLAIN ENGLISH BREAKDOWN
+==========================================
+
+
+THE SHAPE OF THE FILE
+---------------------
+Think of the file as six layers, each building on the one above it:
+
+  1. DATA           — the raw facts about the game
+  2. PURE FUNCTIONS — tools that transform data (no side effects)
+  3. RULES          — is a move legal?
+  4. AI             — how does the computer pick a move?
+  5. GAME STATE     — the live data that changes as the game runs
+  6. UI & EVENTS    — drawing things and reacting to clicks/keys
+
+
+1. DATA (lines ~1–90)
+---------------------
+  const PLAYERS = [ ... ]   // 4 players: name, colour, starting corner
+  const PIECES  = [ ... ]   // 21 pieces: name + list of [col, row] offsets
+
+These never change. They are the rulebook — fixed facts the rest of the code
+refers to.
+
+PIECE_ORIENTATIONS is also built here: it pre-computes every rotation and flip
+of every piece once at startup, so that expensive calculation isn't repeated later.
+
+
+2. PURE FUNCTIONS (lines ~40–90)
+---------------------------------
+  normalize(cells)   // shifts a piece so its top-left is at [0,0]
+  rotateCW(cells)    // rotates 90 degrees clockwise
+  flipH(cells)       // mirrors left to right
+  getOrientations()  // generates up to 8 unique rotations/flips
+
+"Pure" means: given the same input, you always get the same output, and nothing
+outside the function is touched. This makes them easy to test and reason about.
+The transform functions are the Blokus equivalent of shuffling a physical piece
+in your hand.
+
+
+3. RULES / VALIDATION (lines ~90–160)
+--------------------------------------
+  getEdgeNeighbors(r, c)   // the 4 cells sharing an edge
+  getDiagNeighbors(r, c)   // the 4 diagonal cells
+  hasPlacedAny(player)     // has this player placed anything yet?
+  canPlace(cells, player)  // <-- the main referee
+
+canPlace is the heart of the rules engine. It checks four things in order:
+  1. Every cell is on the board and not already occupied
+  2. First move must cover the player's starting corner
+  3. No edge-to-edge contact with your own pieces
+  4. Must touch your own piece diagonally
+
+It returns { ok: true } or { ok: false, reason: '...' } — the reason is shown
+in the status bar when a placement is invalid.
+
+
+4. AI (lines ~185–325)
+-----------------------
+  hasLegalMove(player)        // brute-force: does ANY valid move exist?
+  scoreMove(cells, player)    // how good is this particular move?
+  doAiTurn(player)            // pick the best move and play it
+
+hasLegalMove is also used by the turn-flow logic to detect when a player is stuck.
+
+doAiTurn loops over every piece x orientation x board position (~67,000
+combinations), calls canPlace to filter invalid ones, then scoreMove to rank
+the valid ones. It picks the highest-scoring move and calls tryPlace to execute it.
+
+scoreMove rates each valid move on up to four factors:
+  - Piece size:        +2 per square (prefer big pieces early)
+  - New corners:       +1 per diagonal corner the move opens up
+  - Reach:             0-5 bonus for extending away from your start corner
+  - Block opponents:   +2 per opponent corner covered (optional toggle)
+
+
+5. GAME STATE (lines ~160–185)
+--------------------------------
+  let board               // 20x20 grid; each cell is null or a player index (0-3)
+  let currentPlayerIndex
+  let turnNumber
+  let selectedPieceIndex
+  let currentCells        // the piece in your hand, after any rotations/flips
+  let ghostAnchor         // last board cell the mouse hovered over
+  let playerPieces        // which pieces each player still has left
+  let stuckPlayers        // Set of player indices who have no moves
+  let gameOver
+  let playerModes         // 'human' or 'ai' per player
+  let blockOpponentsEnabled
+  let aiTimeout           // handle for the AI's pending setTimeout
+
+These are the live variables — everything that changes as the game is played.
+The rest of the code reads from and writes to these.
+
+
+6. UI & EVENTS (lines ~340 to end)
+------------------------------------
+This section is split into distinct responsibilities:
+
+  initBoard()              Fills board with null, resets player inventories
+  renderBoard()            Rebuilds the 400 div cells in the DOM
+  showGhost()/clearGhost() Colours cells to preview where a piece will land
+  tryPlace()               Validates + stamps a piece; calls advanceTurn()
+  advanceTurn()            Moves to the next player; marks stuck players; triggers AI
+  endGame()                Calculates scores, builds the scoreboard, shows the overlay
+  renderPlayerCards()      Redraws the four player cards (active, stuck, AI/human)
+  renderPalette()          Redraws the 21 piece thumbnails in the sidebar
+  setStatus()              Updates the one-line message at the bottom
+  resetGame()              Wipes everything back to turn 1
+  onCellClick()            Handles a click on a board cell
+  keydown listener         R = rotate, F = flip
+  mouseover/leave          Trigger ghost preview
+  button listeners         Pass, Reset, Play Again, block-toggle
+
+start() at the very bottom ties it all together — it's the entry point that
+runs once when the page loads.
+
+
+THE FLOW OF A SINGLE TURN
+--------------------------
+  Player clicks a piece in the palette
+    -> selectedPieceIndex + currentCells set
+
+  Player hovers over board
+    -> showGhost() calls canPlace() -> green or grey preview
+
+  Player clicks a board cell
+    -> onCellClick() -> tryPlace()
+        -> canPlace() again (authoritative check)
+        -> stamps board[][]
+        -> renderBoard(), renderPalette()
+        -> advanceTurn()
+            -> finds next player with hasLegalMove()
+            -> if AI: setTimeout(doAiTurn, 400ms)
+            -> if all stuck: endGame()
+
+Every action flows in one direction — input -> state change -> re-render —
+which keeps the code predictable and easy to follow.
+
+
+===========================================================================
+
+
+INDEX.HTML STRUCTURE — PLAIN ENGLISH BREAKDOWN
+===============================================
+
+
+WHAT HTML DOES IN THIS PROJECT
+--------------------------------
+HTML is the skeleton of the page. It defines what containers exist and where
+they sit. It does not control appearance (that is CSS) or behaviour (that is
+JavaScript) — it just provides named boxes that the other two files can style
+and fill with content.
+
+A useful mental model: HTML is the empty rooms of a house. CSS decorates them.
+JavaScript moves the furniture around while you play.
+
+
+THE OVERALL PAGE LAYOUT
+------------------------
+The page is divided into four top-level regions, stacked vertically:
+
+  +-----------------------------------------------+
+  |  HEADER  — game title "Blokus"                |
+  +---------------------------+-------------------+
+  |                           |                   |
+  |   BOARD AREA              |   SIDEBAR         |
+  |   (the 20x20 grid)        |   (controls,      |
+  |                           |    palette, etc.) |
+  +---------------------------+-------------------+
+  |  STATUS BAR  — one-line messages at the bottom|
+  +-----------------------------------------------+
+
+That left/right split inside the main area is created by CSS flexbox — the
+HTML just marks the two sections; CSS positions them side by side.
+
+
+ELEMENT BY ELEMENT
+-------------------
+
+<header id="header">
+  Shows the game title. The id lets CSS target it for the dark background and
+  white text styling.
+
+<main id="main">
+  The wrapper around the board and sidebar. CSS turns this into a flex row
+  so the two children sit side by side.
+
+  <section id="board-area">
+    An empty container. JavaScript builds the 400 individual cell divs inside
+    here at startup and rebuilds them whenever the board changes.
+
+    <div id="board">
+      The actual grid. JavaScript sets its CSS Grid layout (20 columns x 20
+      rows) and appends one <div class="cell"> per square.
+
+  <aside id="sidebar">
+    Everything on the right-hand panel. Contains several sub-sections:
+
+    <div id="player-cards">
+      Starts empty. JavaScript fills this with one card per player, showing
+      their colour swatch, name, stuck/active state, and the Human/AI toggle.
+
+    <div id="turn-info"> / <span id="turn-number">
+      Displays "Turn 3" etc. JavaScript updates just the span number so the
+      surrounding text stays put.
+
+    <div id="controls">
+      Holds the Pass and Reset buttons. These are plain HTML buttons wired up
+      to JavaScript listeners in app.js.
+
+    <label id="block-toggle-label">
+      The "Block opponents (AI rule)" checkbox. The <label> wraps the
+      <input type="checkbox"> so clicking the text also toggles the checkbox —
+      a small but important accessibility detail.
+
+    <div id="piece-palette">
+      Starts empty. JavaScript renders all 21 piece thumbnails here each time
+      the active player changes.
+
+    <div id="key-hints">
+      Static reminder text — this never changes. It uses <kbd> tags (keyboard
+      key styling) to show the R and F shortcuts.
+
+<footer id="status-bar"> / <span id="status-text">
+  The green bar at the bottom. JavaScript updates the span's text to give
+  feedback ("Out of bounds", "Blue plays I5", etc.).
+
+<div id="end-screen"> (hidden by default)
+  A full-screen overlay that sits on top of everything when the game ends.
+  It starts with the CSS class "hidden" (display: none) and JavaScript
+  removes that class to reveal it.
+
+  <div id="end-card">
+    The white card in the centre of the overlay. Contains:
+      <div id="scoreboard"> — JavaScript builds the score rows here
+      <button id="btn-play-again"> — wired to resetGame() in app.js
+
+<script src="app.js">
+  Always the very last thing in the file. Placing it here means the browser
+  has already read all the HTML above before JavaScript runs, so every
+  getElementById call in app.js will find what it is looking for.
+
+
+WHY IDS MATTER
+---------------
+Almost every element has an id. That id is the "address" JavaScript uses to
+find and manipulate the element. For example:
+
+  document.getElementById('turn-number').textContent = turnNumber;
+
+Without the id, JavaScript would have no reliable way to reach that specific
+span. Think of ids as name tags on the containers.
+
+
+===========================================================================
+
+
+STYLES.CSS STRUCTURE — PLAIN ENGLISH BREAKDOWN
+===============================================
+
+
+WHAT CSS DOES IN THIS PROJECT
+-------------------------------
+CSS controls how every element looks and where it sits on screen. While HTML
+says "there is a board here and a sidebar here", CSS says "the board is on the
+left, the sidebar fills the remaining space, and the cells are 24x24 pixels".
+
+The file is organised in sections that match the page layout, top to bottom.
+
+
+1. RESET & BASE (top of file)
+------------------------------
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+Every browser applies its own default spacing and sizing rules, which would
+make the layout look different in Chrome vs Firefox vs Safari. This block
+wipes those defaults so we start from a clean slate.
+
+  body { display: flex; flex-direction: column; height: 100vh; }
+
+This makes the body a vertical flexbox that fills the full screen height.
+Header, main area, and footer stack on top of each other and together fill
+the window — no scrolling needed.
+
+
+2. HEADER
+----------
+Dark background, white text. Simple.
+
+
+3. MAIN LAYOUT — #main
+------------------------
+  display: flex    — places board and sidebar side by side
+  flex: 1          — stretches to fill all remaining height between header and footer
+  overflow: hidden — prevents content from spilling out
+
+  #board-area uses flex: 0 0 auto — meaning it takes only as much space as
+  the board itself needs and does not stretch.
+
+  #sidebar uses flex: 1 — meaning it expands to fill all the space the board
+  does not use.
+
+
+4. PLAYER CARDS — .player-card
+--------------------------------
+Each card is a small flex column (swatch on top, name below, button at bottom).
+Three visual states are controlled by CSS classes that JavaScript swaps in/out:
+
+  .player-card          — default: slightly transparent (opacity 0.45)
+  .player-card.active   — full opacity + a coloured border ring around the card
+  .player-card.stuck    — very faint (opacity 0.25) to show the player is done
+  .player-card.ai-mode  — no extra visual change here; the toggle button handles it
+
+The border ring on the active card uses a trick:
+  border-color: currentColor
+  box-shadow: 0 0 0 2px currentColor
+"currentColor" inherits whatever colour JavaScript set on the element via
+inline style, so each player's ring shows in their own colour automatically.
+
+
+5. BOARD CELLS — .cell
+------------------------
+  width: 24px; height: 24px; border: 1px solid #ccc;
+
+400 of these make up the grid. The grid layout itself (20 columns) is set by
+JavaScript on the #board element, not in CSS, because it depends on BOARD_SIZE.
+
+  .cell:hover { filter: brightness(0.88); }
+A subtle darkening when you hover — enough to see your cursor without being
+distracting.
+
+  .cell-ghost { opacity: 0.55; }
+When a piece is being previewed, JavaScript adds this class to the relevant
+cells to make them semi-transparent. The background colour (player colour or
+grey) is set directly by JavaScript.
+
+
+6. PIECE PALETTE
+-----------------
+  .palette-grid        — a flex-wrap row: thumbnails flow left to right and
+                         wrap onto new lines when they run out of space
+  .piece-preview       — one card per piece; a small flex column
+  .piece-preview.selected — darker border to show which piece is active
+  .piece-preview.played   — grey and non-clickable (pointer-events: none)
+                            for pieces already placed on the board
+  .piece-mini-grid     — a CSS Grid inside each card that draws the piece shape
+  .preview-cell        — each tiny 10x10px square in the mini-grid;
+                         filled cells get their colour set by JavaScript
+
+
+7. KEYBOARD HINTS — #key-hints
+--------------------------------
+Static styling for the reminder box. The <kbd> tag gets a monospace pill
+style (light grey background, border, rounded corners) to look like a
+physical keyboard key.
+
+
+8. END-SCREEN OVERLAY
+-----------------------
+  #end-screen
+    position: fixed; inset: 0   — covers the entire viewport, on top of everything
+    background: rgba(0,0,0,0.65) — semi-transparent dark backdrop
+    display: flex (centred)      — keeps the card in the middle of the screen
+
+  .hidden { display: none !important; }
+    The class JavaScript adds/removes to show or hide the overlay. The
+    !important ensures nothing else can accidentally override it.
+
+  .score-row — one flex row per player in the results table
+  .rank-1 / .rank-2 / .rank-3 — gold / silver / bronze tint on the background
+                                  of the top three rows
+
+
+9. STATUS BAR — #status-bar
+-----------------------------
+Dark background, green text. Sits at the very bottom of the page. JavaScript
+updates only the text inside it — the bar itself never moves or resizes.
+
+
+HOW THE THREE FILES WORK TOGETHER
+-----------------------------------
+A simple way to picture the relationship:
+
+  index.html  — defines the containers ("there is a div called board")
+  styles.css  — describes how those containers look ("board cells are 24x24px")
+  app.js      — fills and changes them at runtime ("paint this cell blue")
+
+None of the three files can do the full job alone. Remove the HTML and there
+are no elements to style or script. Remove the CSS and the layout collapses
+into an unstyled pile of text. Remove the JavaScript and you have a pretty
+empty page with no game logic at all.
