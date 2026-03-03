@@ -173,7 +173,7 @@ let gameOver = false;
 let lastPlacedPieceIndex = [];
 
 // 'human' or 'ai' for each player — persists across resets
-let playerModes = ['human', 'human', 'human', 'human'];
+let playerModes = ['human', 'ai', 'ai', 'ai'];
 
 // When true, the AI scoring function also rewards blocking opponent corners
 let blockOpponentsEnabled = false;
@@ -758,15 +758,7 @@ function onCellClick(row, col) {
     // On success, tryPlace calls advanceTurn() automatically.
     tryPlace(row, col);
   } else {
-    // No piece selected: toggle a single cell for freehand painting
-    if (board[row][col] === currentPlayerIndex) {
-      board[row][col] = null;
-      setStatus(`Erased (${row}, ${col}).`);
-    } else {
-      board[row][col] = currentPlayerIndex;
-      setStatus(`Painted (${row}, ${col}) for ${PLAYERS[currentPlayerIndex].name}.`);
-    }
-    renderBoard();
+    setStatus('Select a piece from the palette first.');
   }
 }
 
