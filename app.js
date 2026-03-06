@@ -181,6 +181,9 @@ let blockOpponentsEnabled = false;
 // Handle for the pending AI move setTimeout so we can cancel it on reset
 let aiTimeout = null;
 
+// True while the Hint button is held — suppresses the ghost preview
+let hintActive = false;
+
 function initPlayerPieces() {
   playerPieces = PLAYERS.map(() => PIECES.map((_, i) => i));
   lastPlacedPieceIndex = new Array(PLAYERS.length).fill(null);
@@ -453,7 +456,6 @@ function endGame() {
   // Show overlay
   document.getElementById('end-screen').classList.remove('hidden');
   setStatus('Game over! See the final scores.');
-  document.getElementById('btn-pass').disabled = true;
 }
 
 // ── DOM references ──
@@ -462,8 +464,38 @@ const playerCardsEl = document.getElementById('player-cards');
 const turnNumberEl  = document.getElementById('turn-number');
 const statusTextEl  = document.getElementById('status-text');
 const paletteEl     = document.getElementById('piece-palette');
-const btnPass       = document.getElementById('btn-pass');
 const btnReset      = document.getElementById('btn-reset');
+const btnHint       = document.getElementById('btn-hint');
+
+// ── Responsive cell sizing ──
+// Calculates the largest cell size that fits the board in the visible window.
+
+function calcCellSize() {
+  const headerH = document.getElementById('header').offsetHeight;
+  const PADDING = 32;  // 16px on each side
+  const GAP     = 16;  // gap between board-area and sidebar
+
+  const availH = window.innerHeight - headerH - PADDING;
+  const availW = window.innerWidth  - PADDING;
+
+  let maxPx;
+  if (window.innerWidth < 700) {
+    // Stacked layout: board uses full width; leave half the height for the sidebar
+    maxPx = Math.min(availW, availH * 0.5);
+  } else {
+    // 50/50 layout: each half = (viewport - left pad - right pad - gap) / 2
+    const halfW = (window.innerWidth - 48) / 2;
+    maxPx = Math.min(halfW, availH);
+  }
+
+  return Math.max(12, Math.floor(maxPx / BOARD_SIZE));
+}
+
+function applyCellSize() {
+  const size = calcCellSize();
+  document.documentElement.style.setProperty('--cell-size', size + 'px');
+  boardEl.style.gridTemplateColumns = `repeat(${BOARD_SIZE}, ${size}px)`;
+}
 
 // ── Board init ──
 
@@ -480,7 +512,7 @@ function initBoard() {
 function renderBoard() {
   boardEl.innerHTML = '';
   boardEl.style.display = 'grid';
-  boardEl.style.gridTemplateColumns = `repeat(${BOARD_SIZE}, 24px)`;
+  applyCellSize();
 
   for (let row = 0; row < BOARD_SIZE; row++) {
     for (let col = 0; col < BOARD_SIZE; col++) {
@@ -518,6 +550,49 @@ function clearGhost() {
     el.classList.remove('cell-ghost');
     restoreCellBg(el, parseInt(el.dataset.row), parseInt(el.dataset.col));
   });
+}
+
+// ── Hint: highlight every cell that is part of any valid placement ──
+// Considers all rotations and flips of the selected piece.
+
+function showHints() {
+  if (selectedPieceIndex === null || gameOver) return;
+  if (playerModes[currentPlayerIndex] === 'ai') return;
+
+  hintActive = true;
+  clearGhost();
+
+  // Collect every board cell that appears in at least one valid placement
+  const hintCells = new Set();
+  for (const orientation of PIECE_ORIENTATIONS[selectedPieceIndex]) {
+    for (let anchorRow = 0; anchorRow < BOARD_SIZE; anchorRow++) {
+      for (let anchorCol = 0; anchorCol < BOARD_SIZE; anchorCol++) {
+        const abs = orientation.map(([dc, dr]) => [anchorRow + dr, anchorCol + dc]);
+        if (canPlace(abs, currentPlayerIndex).ok) {
+          for (const [r, c] of abs) hintCells.add(`${r},${c}`);
+        }
+      }
+    }
+  }
+
+  for (const key of hintCells) {
+    const [r, c] = key.split(',').map(Number);
+    const el = getCellEl(r, c);
+    el.classList.add('cell-hint');
+    el.style.background = '#555';
+  }
+
+  setStatus(`Hint: showing all valid placements for ${PIECES[selectedPieceIndex].name}.`);
+}
+
+function clearHints() {
+  hintActive = false;
+  boardEl.querySelectorAll('.cell-hint').forEach(el => {
+    el.classList.remove('cell-hint');
+    restoreCellBg(el, parseInt(el.dataset.row), parseInt(el.dataset.col));
+  });
+  // Restore ghost if the cursor is still over the board
+  if (ghostAnchor !== null) showGhost(ghostAnchor.row, ghostAnchor.col);
 }
 
 // Show the piece ghost anchored at (anchorRow, anchorCol).
@@ -789,7 +864,7 @@ document.addEventListener('keydown', (e) => {
 
 function setupBoardHover() {
   boardEl.addEventListener('mouseover', (e) => {
-    if (selectedPieceIndex === null) return;
+    if (selectedPieceIndex === null || hintActive) return;
     const cell = e.target.closest('.cell');
     if (!cell) return;
     showGhost(parseInt(cell.dataset.row), parseInt(cell.dataset.col));
@@ -801,15 +876,13 @@ function setupBoardHover() {
   });
 }
 
-// ── Button: Pass ──
-// Manual skip — useful during testing. In real play, End Turn covers this.
+// ── Button: Hint (hold to show all valid placements) ──
 
-btnPass.addEventListener('click', () => {
-  if (gameOver) return;
-  if (playerModes[currentPlayerIndex] === 'ai') return;
-  setStatus(`${PLAYERS[currentPlayerIndex].name} passed.`);
-  advanceTurn();
-});
+btnHint.addEventListener('mousedown',  showHints);
+btnHint.addEventListener('mouseup',    clearHints);
+btnHint.addEventListener('mouseleave', clearHints);
+btnHint.addEventListener('touchstart', (e) => { e.preventDefault(); showHints(); });
+btnHint.addEventListener('touchend',   clearHints);
 
 // ── Reset helper (shared by Reset button and Play Again) ──
 
@@ -823,7 +896,6 @@ function resetGame() {
   selectedPieceIndex = null;
   currentCells = null;
   ghostAnchor = null;
-  btnPass.disabled = false;
   initBoard(); // resets board, playerPieces, lastPlacedPieceIndex, stuckPlayers, gameOver
   renderBoard();
   renderPlayerCards();
@@ -846,6 +918,14 @@ document.getElementById('block-toggle').addEventListener('change', (e) => {
 
 // ── Button: Play Again (in end-screen overlay) ──
 document.getElementById('btn-play-again').addEventListener('click', resetGame);
+
+// ── Resize: update cell size without rebuilding the whole board ──
+
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(applyCellSize, 80);
+});
 
 // ── Start ──
 

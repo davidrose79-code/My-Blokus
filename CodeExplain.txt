@@ -89,6 +89,7 @@ scoreMove rates each valid move on up to four factors:
   let playerModes         // 'human' or 'ai' per player
   let blockOpponentsEnabled
   let aiTimeout           // handle for the AI's pending setTimeout
+  let hintActive          // true while the Hint button is held down
 
 These are the live variables — everything that changes as the game is played.
 The rest of the code reads from and writes to these.
@@ -100,18 +101,23 @@ This section is split into distinct responsibilities:
 
   initBoard()              Fills board with null, resets player inventories
   renderBoard()            Rebuilds the 400 div cells in the DOM
+  calcCellSize()           Works out the largest cell that fits in the current window
+  applyCellSize()          Writes the cell size to a CSS variable + the board grid
   showGhost()/clearGhost() Colours cells to preview where a piece will land
+  showHints()/clearHints() Highlights every cell that forms part of any valid
+                           placement for the selected piece (all rotations/flips)
   tryPlace()               Validates + stamps a piece; calls advanceTurn()
   advanceTurn()            Moves to the next player; marks stuck players; triggers AI
   endGame()                Calculates scores, builds the scoreboard, shows the overlay
   renderPlayerCards()      Redraws the four player cards (active, stuck, AI/human)
   renderPalette()          Redraws the 21 piece thumbnails in the sidebar
-  setStatus()              Updates the one-line message at the bottom
+  setStatus()              Updates the live message shown in the header bar
   resetGame()              Wipes everything back to turn 1
   onCellClick()            Handles a click on a board cell
   keydown listener         R = rotate, F = flip
-  mouseover/leave          Trigger ghost preview
-  button listeners         Pass, Reset, Play Again, block-toggle
+  mouseover/leave          Trigger ghost preview (suppressed while hints are showing)
+  button listeners         Reset, Hint (hold), Play Again, block-toggle
+  resize listener          Recalculates cell size when the browser window is resized
 
 start() at the very bottom ties it all together — it's the entry point that
 runs once when the page loads.
@@ -159,44 +165,56 @@ JavaScript moves the furniture around while you play.
 
 THE OVERALL PAGE LAYOUT
 ------------------------
-The page is divided into four top-level regions, stacked vertically:
+The page is divided into three top-level regions, stacked vertically:
 
   +-----------------------------------------------+
-  |  HEADER  — game title "Blokus"                |
+  |  HEADER  — "Blokus" title | live status msg   |
   +---------------------------+-------------------+
   |                           |                   |
-  |   BOARD AREA              |   SIDEBAR         |
-  |   (the 20x20 grid)        |   (controls,      |
-  |                           |    palette, etc.) |
+  |   BOARD AREA  (50%)       |   SIDEBAR  (50%)  |
+  |   - the 20x20 grid        |   - player cards  |
+  |   - How to play rules     |   - turn counter  |
+  |   - keyboard shortcuts    |   - buttons       |
+  |                           |   - piece palette |
   +---------------------------+-------------------+
-  |  STATUS BAR  — one-line messages at the bottom|
-  +-----------------------------------------------+
 
-That left/right split inside the main area is created by CSS flexbox — the
-HTML just marks the two sections; CSS positions them side by side.
+The header holds both the game title and the live status message, separated
+by a thin vertical divider. The two columns each take exactly half the page
+width on wide screens. On narrow screens (under 700px) they stack vertically,
+board on top.
 
 
 ELEMENT BY ELEMENT
 -------------------
 
 <header id="header">
-  Shows the game title. The id lets CSS target it for the dark background and
-  white text styling.
+  Contains three things in a flex row:
+    <h1>          — the "Blokus" title on the left
+    #header-divider — a thin vertical line separating the title from the message
+    #status-text  — the live game message (e.g. "Blue's turn — pick a piece")
+  JavaScript calls setStatus() to update just the span text whenever something
+  happens in the game.
 
 <main id="main">
-  The wrapper around the board and sidebar. CSS turns this into a flex row
-  so the two children sit side by side.
+  The wrapper around the board area and sidebar. CSS turns this into a flex row
+  where both children take exactly half the available width.
 
   <section id="board-area">
-    An empty container. JavaScript builds the 400 individual cell divs inside
-    here at startup and rebuilds them whenever the board changes.
+    The left half of the page. Contains three things stacked vertically:
 
     <div id="board">
       The actual grid. JavaScript sets its CSS Grid layout (20 columns x 20
       rows) and appends one <div class="cell"> per square.
 
+    <div id="how-to-play">
+      Static beginner rules shown below the board. Never changed by JavaScript.
+
+    <div id="key-hints">
+      Static keyboard shortcut reminder (R to rotate, F to flip). Uses <kbd>
+      tags so the key names look like physical keyboard keys.
+
   <aside id="sidebar">
-    Everything on the right-hand panel. Contains several sub-sections:
+    The right half of the page. Contains several sub-sections:
 
     <div id="player-cards">
       Starts empty. JavaScript fills this with one card per player, showing
@@ -207,8 +225,8 @@ ELEMENT BY ELEMENT
       surrounding text stays put.
 
     <div id="controls">
-      Holds the Pass and Reset buttons. These are plain HTML buttons wired up
-      to JavaScript listeners in app.js.
+      Holds the Reset Board and Hold for Hint buttons. The Hint button shows
+      every valid placement for the selected piece while held down.
 
     <label id="block-toggle-label">
       The "Block opponents (AI rule)" checkbox. The <label> wraps the
@@ -218,14 +236,6 @@ ELEMENT BY ELEMENT
     <div id="piece-palette">
       Starts empty. JavaScript renders all 21 piece thumbnails here each time
       the active player changes.
-
-    <div id="key-hints">
-      Static reminder text — this never changes. It uses <kbd> tags (keyboard
-      key styling) to show the R and F shortcuts.
-
-<footer id="status-bar"> / <span id="status-text">
-  The green bar at the bottom. JavaScript updates the span's text to give
-  feedback ("Out of bounds", "Blue plays I5", etc.).
 
 <div id="end-screen"> (hidden by default)
   A full-screen overlay that sits on top of everything when the game ends.
@@ -292,15 +302,22 @@ Dark background, white text. Simple.
 
 3. MAIN LAYOUT — #main
 ------------------------
-  display: flex    — places board and sidebar side by side
-  flex: 1          — stretches to fill all remaining height between header and footer
+  display: flex    — places board area and sidebar side by side
+  flex: 1          — stretches to fill all remaining height below the header
   overflow: hidden — prevents content from spilling out
 
-  #board-area uses flex: 0 0 auto — meaning it takes only as much space as
-  the board itself needs and does not stretch.
+  Both #board-area and #sidebar use flex: 1 1 0 — meaning they each claim
+  exactly half the available width, no matter how wide or narrow the window is.
+  Each column also has overflow-y: auto so it can scroll independently if its
+  content is taller than the screen.
 
-  #sidebar uses flex: 1 — meaning it expands to fill all the space the board
-  does not use.
+  On screens narrower than 700px a media query switches #main to
+  flex-direction: column so the board stacks on top and the sidebar sits below.
+
+  :root { --cell-size: 24px }
+  The board cell size is stored as a CSS variable. JavaScript updates this on
+  page load and whenever the window is resized, so cells always scale to fit
+  the available space rather than being a fixed pixel size.
 
 
 4. PLAYER CARDS — .player-card
@@ -322,10 +339,12 @@ inline style, so each player's ring shows in their own colour automatically.
 
 5. BOARD CELLS — .cell
 ------------------------
-  width: 24px; height: 24px; border: 1px solid #ccc;
+  width: var(--cell-size); height: var(--cell-size); border: 1px solid #ccc;
 
 400 of these make up the grid. The grid layout itself (20 columns) is set by
 JavaScript on the #board element, not in CSS, because it depends on BOARD_SIZE.
+Cell size is controlled by the --cell-size CSS variable so changing one value
+resizes all 400 cells instantly.
 
   .cell:hover { filter: brightness(0.88); }
 A subtle darkening when you hover — enough to see your cursor without being
@@ -373,10 +392,13 @@ physical keyboard key.
                                   of the top three rows
 
 
-9. STATUS BAR — #status-bar
------------------------------
-Dark background, green text. Sits at the very bottom of the page. JavaScript
-updates only the text inside it — the bar itself never moves or resizes.
+9. HINT BUTTON — #btn-hint
+---------------------------
+The "Hold for Hint" button has a green-tinted border to distinguish it from
+Reset. When held, JavaScript calls showHints() which iterates every orientation
+of the selected piece across every board position and colours all valid
+placement cells dark grey. clearHints() restores normal colours on release.
+While hints are showing, the ghost preview is suppressed (hintActive flag).
 
 
 HOW THE THREE FILES WORK TOGETHER

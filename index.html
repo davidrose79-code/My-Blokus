@@ -8,9 +8,11 @@
 </head>
 <body>
 
-  <!-- Top bar with game title -->
+  <!-- Top bar: title + live status message -->
   <header id="header">
     <h1>Blokus</h1>
+    <div id="header-divider"></div>
+    <span id="status-text">Ready.</span>
   </header>
 
   <!-- Main area: board on the left, sidebar on the right -->
@@ -19,6 +21,29 @@
     <!-- The game board will be rendered here by app.js -->
     <section id="board-area">
       <div id="board"></div>
+
+      <!-- Quick-start rules shown below the board -->
+      <div id="how-to-play">
+        <strong>How to play</strong>
+        <ol>
+          <li>Each player starts in their own corner.</li>
+          <li>Your first piece must cover that corner square.</li>
+          <li>Every piece you place must touch one of your own pieces <em>corner-to-corner</em> — but never side-to-side.</li>
+          <li>You can touch an opponent's pieces on any side — just not your own.</li>
+          <li>When no player can place any more pieces, the game ends automatically.</li>
+          <li>Fewest squares left unplaced wins (lowest score wins).</li>
+        </ol>
+      </div>
+
+      <!-- Keyboard shortcuts live here, next to the board -->
+      <div id="key-hints">
+        <strong>Keyboard shortcuts</strong>
+        <ul>
+          <li><kbd>R</kbd> — rotate piece 90° clockwise</li>
+          <li><kbd>F</kbd> — flip piece left ↔ right</li>
+        </ul>
+        <p>Hover over the board to preview · click to place</p>
+      </div>
     </section>
 
     <!-- Sidebar: player info, piece palette, buttons -->
@@ -33,8 +58,8 @@
       </div>
 
       <div id="controls">
-        <button id="btn-pass">Pass</button>
         <button id="btn-reset">Reset Board</button>
+        <button id="btn-hint">Hold for Hint</button>
       </div>
 
       <label id="block-toggle-label">
@@ -44,24 +69,9 @@
 
       <!-- JS renders piece cards into here -->
       <div id="piece-palette"></div>
-
-      <!-- Always-visible reminder of what the keys do -->
-      <div id="key-hints">
-        <strong>Keyboard shortcuts</strong>
-        <ul>
-          <li><kbd>R</kbd> — rotate piece 90° clockwise</li>
-          <li><kbd>F</kbd> — flip piece left ↔ right</li>
-        </ul>
-        <p>Hover over the board to preview · click to place</p>
-      </div>
     </aside>
 
   </main>
-
-  <!-- Status bar at the bottom: shows messages & coordinates -->
-  <footer id="status-bar">
-    <span id="status-text">Ready.</span>
-  </footer>
 
   <!-- End-game overlay — hidden until endGame() shows it -->
   <div id="end-screen" class="hidden">

@@ -5,6 +5,10 @@
   padding: 0;
 }
 
+:root {
+  --cell-size: 24px; /* JS overrides this dynamically on load and resize */
+}
+
 body {
   font-family: sans-serif;
   background: #f0f0f0;
@@ -17,12 +21,36 @@ body {
 #header {
   background: #222;
   color: #fff;
-  padding: 10px 20px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-height: 44px;
+  flex-shrink: 0;
 }
 
 #header h1 {
   font-size: 1.4rem;
   letter-spacing: 2px;
+  flex-shrink: 0;
+  padding: 10px 0;
+}
+
+/* Vertical divider between title and status */
+#header-divider {
+  width: 1px;
+  height: 22px;
+  background: #555;
+  margin: 0 18px;
+  flex-shrink: 0;
+}
+
+/* Live status / instruction message */
+#status-text {
+  font-size: 0.85rem;
+  font-style: italic;
+  color: #9dc;
+  letter-spacing: 0.2px;
 }
 
 /* ── Main layout: board + sidebar side by side ── */
@@ -34,12 +62,40 @@ body {
   padding: 16px;
 }
 
-/* ── Board area ── */
+/* ── Board area (left half) ── */
 #board-area {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
-  justify-content: center;
-  flex: 0 0 auto;   /* don't stretch; size is set by the board itself */
+  flex: 1 1 0;       /* equal half of #main */
+  min-width: 0;
+  gap: 12px;
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+/* ── How-to-play box ── */
+#how-to-play {
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 10px 14px;
+  font-size: 0.8rem;
+  color: #444;
+  line-height: 1.7;
+  width: 100%;         /* stretch to match the board width */
+}
+
+#how-to-play strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.82rem;
+  color: #222;
+}
+
+#how-to-play ol {
+  margin: 0 0 0 18px;
+  padding: 0;
 }
 
 #board {
@@ -47,9 +103,10 @@ body {
   border: 2px solid #444;
 }
 
-/* ── Sidebar ── */
+/* ── Sidebar (right half) ── */
 #sidebar {
-  flex: 1;
+  flex: 1 1 0;       /* equal half of #main */
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -133,6 +190,19 @@ body {
   background: #e8e8e8;
 }
 
+#btn-hint {
+  border-color: #6a9;
+  color: #363;
+}
+
+#btn-hint:hover {
+  background: #e8f5ee;
+}
+
+#btn-hint:active {
+  background: #c8e8d8;
+}
+
 #piece-palette {
   background: #fff;
   border: 1px solid #ccc;
@@ -143,8 +213,8 @@ body {
 
 /* ── Board cells ── */
 .cell {
-  width: 24px;
-  height: 24px;
+  width: var(--cell-size);
+  height: var(--cell-size);
   border: 1px solid #ccc;
   cursor: pointer;
   background: #fff;
@@ -385,6 +455,34 @@ body {
   font-weight: bold;
 }
 
+/* ── Responsive: stack board above sidebar on narrow screens ── */
+@media (max-width: 700px) {
+  body {
+    height: auto;
+    min-height: 100vh;
+    overflow-y: auto;
+  }
+
+  #main {
+    flex-direction: column;
+    overflow: visible;
+    height: auto;
+  }
+
+  #board-area {
+    flex: none;
+    width: 100%;
+    max-height: none;
+    align-items: center;
+  }
+
+  #sidebar {
+    flex: none;
+    width: 100%;
+    overflow-y: visible;
+  }
+}
+
 /* ── Block-opponents checkbox label ── */
 #block-toggle-label {
   display: flex;
@@ -397,11 +495,3 @@ body {
   user-select: none;
 }
 
-/* ── Status bar ── */
-#status-bar {
-  background: #222;
-  color: #cfc;
-  padding: 6px 16px;
-  font-size: 0.85rem;
-  min-height: 28px;
-}
